@@ -1,0 +1,379 @@
+//+------------------------------------------------------------------+
+//|                                             ap_time_filter33.mqh |
+//|                                                       Solar Tron |
+//|                                                                  |
+//+------------------------------------------------------------------+
+#property copyright "Solar Tron"
+#property link      ""
+#property strict
+
+#include <stash.mqh>
+#include <Object.mqh>
+
+extern bool time_filter = true; // if true, trade within this time range.
+extern int start_hour = 08;
+extern int start_min = 00;
+
+extern int end_hour = 09;
+extern int end_min = 00;
+
+extern double lotsize_to_use = 0.01;
+
+string trading_hours_name = "Trading Hours";
+string trading_hours_rectangle_name;
+int trading_hours_signal;
+bool within_trading_hours = false;
+
+int hour;
+int min;
+bool tradeSent00 = false;
+bool tradeSent04 = false;
+bool tradeSent08 = false;
+bool tradeSent12 = false;
+bool tradeSent20 = false;
+
+double sl_price;
+double tp_price;
+double open_price;
+double sl_pip_distance;
+
+//+------------------------------------------------------------------+
+//|                       within_session_check                       |
+//+------------------------------------------------------------------+
+void within_session_check()
+  {
+  
+        // TimeCurrent() returns an integer
+    hour = TimeHour( TimeCurrent() );
+    min = TimeMinute( TimeCurrent() );
+      
+
+   if( hour == 0 && min == 0 )
+   {
+      //OrderSend(Symbol(),OP_BUY,0.01,Ask,30,0,0);
+      open_trade_logic();
+   }
+
+   if( hour == 0 && min == 0 )
+   {
+      if( tradeSent00 == false )
+      { 
+      open_trade_logic();
+      tradeSent00 = true;
+      }
+   }
+   /*
+   if( hour == 04 && min == 0 )
+   {
+      if( tradeSent04 == false )
+      { 
+      open_trade_logic(); 
+      tradeSent04 = true;
+      }
+   }
+   
+      if( hour == 08 && min == 0 )
+   {
+      if( tradeSent08 == false )
+      { 
+      open_trade_logic(); 
+      tradeSent08 = true;
+      }
+   }
+   
+   if( hour == 12 && min == 0 )
+   {
+      if( tradeSent12 == false )
+      { 
+      open_trade_logic(); 
+      tradeSent12 = true;
+      }
+   }
+   
+   if( hour == 20 && min == 0 )
+   {
+      if( tradeSent20 == false )
+      { 
+      open_trade_logic(); 
+      tradeSent20 = true;
+      }
+   }
+   */
+   
+   if( trading_hours_check() && !within_trading_hours )
+     { 
+      start_trading_hours_session();
+      //display();
+      //check_for_updates(); 
+     }
+
+   if( trading_hours_check() && within_trading_hours )
+     { 
+      update_trading_hours_visuals();
+      //display();
+      //check_for_updates(); 
+     }
+
+   if( within_trading_hours && !trading_hours_check() )
+     { 
+      end_trading_hours_session();
+      //display();
+      //check_for_updates(); 
+     }
+  }
+
+//+------------------------------------------------------------------+
+//|                end_trading_hours_session                         |
+//+------------------------------------------------------------------+
+void end_trading_hours_session()
+  {
+   within_trading_hours = false;
+  }
+
+//+------------------------------------------------------------------+
+//|                  update_trading_hours_visuals                    |
+//+------------------------------------------------------------------+
+void update_trading_hours_visuals()
+  {
+   ObjectMove(0,trading_hours_rectangle_name,0,Time[0],-1);
+  }
+
+//+------------------------------------------------------------------+
+//|                     start_trading_hours_session                  |
+//+------------------------------------------------------------------+
+void start_trading_hours_session()
+  {
+   trading_hours_signal++;
+   trading_hours_rectangle_name = trading_hours_name + IntegerToString(trading_hours_signal);
+   ObjectCreate(0,trading_hours_rectangle_name,OBJ_RECTANGLE,0,Time[0],0,Time[0],999);
+   ObjectSetInteger(0,trading_hours_rectangle_name,OBJPROP_COLOR,clrDarkGreen);
+   ObjectSetInteger(0,trading_hours_rectangle_name,OBJPROP_BACK,true);
+   within_trading_hours=true;
+  }
+
+//+------------------------------------------------------------------+
+//|                      trading_hours_check                         |
+//+------------------------------------------------------------------+
+bool trading_hours_check()
+  {
+   // if time filter is equal to false, return true
+   if( !time_filter ) 
+    { return true; }
+
+    // TimeCurrent() returns an integer
+   int hour = TimeHour( TimeCurrent() );
+   int min = TimeMinute( TimeCurrent() );
+
+   if( start_hour <= end_hour )
+     {
+      if( hour == start_hour && min >= start_min)
+        { return true; }
+         
+      if( hour > start_hour && hour < end_hour)
+        { return true; }
+
+      if(hour == end_hour && min < end_min)
+        { return true; }
+     }
+
+   if( start_hour > end_hour )
+     {
+      if( hour == start_hour && min >= start_min)
+        { return true; }
+
+      if( hour > start_hour || hour < end_hour)
+        { return true; }
+
+      if( hour == end_hour && min < end_min)
+        { return true; }
+     }
+
+   return false;
+  }
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+
+enum target_timeframes
+{
+   custom = 0,
+   hourly = 60,
+   hourly_4 = 240,
+   daily = 1440,
+   weekly = 10080
+};
+
+extern double risk_percent_per_sequence = 0.1;
+extern string trigger_pair = "USDCHF";
+extern string positive_correlated_pairs = "AUDCAD,AUDCHF,AUDJPY,AUDUSD,EURAUD,CADCHF,CADJPY,EURCAD,USDCAD,CHFJPY,EURCHF,USDCHF,EURJPY,EURNZD,EURUSD,EURGBP,GBPJPY,NZDJPY,USDJPY,NZDUSD,GBPUSD,GBPCHF";
+extern string negative_correlated_pairs = "AUDCAD,AUDCHF,AUDJPY,AUDUSD,EURAUD,CADCHF,CADJPY,EURCAD,USDCAD,CHFJPY,EURCHF,USDCHF,EURJPY,EURNZD,EURUSD,EURGBP,GBPJPY,NZDJPY,USDJPY,NZDUSD,GBPUSD,GBPCHF";
+
+extern target_timeframes stop_limit = custom;
+extern double custom_stop = 15;
+extern target_timeframes target = custom;
+extern double custom_target = 100;
+extern double stop_buffer_pips = 5;
+extern int magic_number = 55;
+//---
+string correlating_pairs_array[];
+string non_correlating_pairs_array[];
+int open_trades=0;
+int number_of_pairs=0;
+
+void check_for_updates()
+{
+   if( OrdersTotal() > open_trades )
+   {
+      open_trades = OrdersTotal();
+   }
+   
+
+   if( OrdersTotal() < open_trades )
+   {
+      open_trades = OrdersTotal();
+   }
+   
+}
+//+------------------------------------------------------------------+
+
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void init_correlation()
+{
+   StringSplit(positive_correlated_pairs,StringGetCharacter(",",0),correlating_pairs_array);
+   StringSplit(negative_correlated_pairs,StringGetCharacter(",",0),non_correlating_pairs_array);
+   number_of_pairs = ArraySize(correlating_pairs_array) + ArraySize(non_correlating_pairs_array);
+}
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+
+void open_trade_logic()
+{
+   string asset;
+   double lotsize_to_use;
+
+   for(int i=0; i < ArraySize(correlating_pairs_array); i++)
+   {
+      asset = correlating_pairs_array[i];
+      pip_value = grab_pip_value(asset);
+      open_price = MarketInfo(asset,MODE_ASK);
+         
+        // ---- Open a Buy Trade ----
+        // ---- Open a Buy Trade ----
+        // ---- Open a Buy Trade ----
+        if( stop_limit == custom )
+        { sl_price = open_price - ( custom_stop * pip_value ); }
+
+        else // stop_limit != custom
+        { sl_price = iLow(asset,stop_limit,0) - ( stop_buffer_pips * pip_value ); }
+
+        if( target == custom )
+        { tp_price = open_price + ( custom_target * pip_value); }
+
+        else // target != custom 
+        { tp_price = iHigh(asset,target,0); }
+
+        sl_pip_distance = ( open_price - sl_price ) / pip_value;
+      
+        OrderSend(asset,OP_BUY,lotsize_to_use,open_price,30,sl_price,tp_price,"Correlating "+trigger_pair,magic_number);
+
+        // ---- Open a Sell Trade ----
+        // ---- Open a Sell Trade ----
+        // ---- Open a Sell Trade ----
+        open_price = MarketInfo(asset,MODE_BID);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price + ( custom_stop * pip_value); }
+
+        else // stop_limit != custom
+        { sl_price = iHigh(asset,stop_limit,0) + ( stop_buffer_pips * pip_value ); }
+
+        if( target == custom )
+        { tp_price = open_price - (custom_target * pip_value); }
+            
+        else // target != custom
+        { tp_price = iLow(asset,target,0); }
+
+        sl_pip_distance = (sl_price - open_price) / pip_value;
+
+        OrderSend(asset,OP_SELL,lotsize_to_use,open_price,30,sl_price,tp_price,"Correlating "+trigger_pair,magic_number);
+    }
+     
+    /*
+    for(int i; i < ArraySize(non_correlating_pairs_array); i++)
+    {
+      string asset = non_correlating_pairs_array[i];
+      pip_value = grab_pip_value(asset);
+      int order;
+      
+      if( OrderType() == OP_SELL )
+      {
+        order=OP_BUY;
+        
+        open_price = MarketInfo(asset,MODE_ASK);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price - (custom_stop*pip_value); }
+
+        else // stop_limit != custom
+        { sl_price = iLow(asset,stop_limit,0) - (stop_buffer_pips * pip_value); }
+
+        if( target == custom )
+        { tp_price = open_price + (custom_target * pip_value); }
+        
+        else // target != custom 
+        { tp_price = iHigh(asset,target,0); }
+
+        sl_pip_distance = ( open_price - sl_price ) / pip_value;
+      }
+
+      if( OrderType() == OP_BUY )
+      {
+        order=OP_SELL;
+        open_price = MarketInfo(asset,MODE_BID);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price + (custom_stop * pip_value); }
+        
+        else // stop_limit != custom
+        { sl_price = iHigh(asset,stop_limit,0) + (stop_buffer_pips * pip_value); }
+
+        if( target == custom )
+        { tp_price = open_price - (custom_target * pip_value); }
+            
+        else // target != custom
+        { tp_price = iLow(asset,target,0); }
+
+        sl_pip_distance = ( sl_price - open_price) / pip_value;
+      }
+        
+        double lotsize_to_use = calculate_lotsize_by_currency_amount(amount_to_risk,sl_pip_distance,asset);
+        
+        if(lotsize_to_use < 0.01)
+        { lotsize_to_use = 0.01; }
+        
+        OrderSend(asset,order,lotsize_to_use,open_price,30,sl_price,tp_price,"Non-Correlating "+trigger_pair,magic_number);
+    }
+    */
+}
+//+------------------------------------------------------------------+
+
+void display()
+{
+   int height_shift= _H+25;
+   int x_axis_position = _X+200;
+   int y_axis_position = _Y+15;
+   text_size = 8;
+   color txt_clr = clrWhite;
+   
+   string label_1_text = "Trigger: "+trigger_pair;
+   
+   label("display_1",x_axis_position,y_axis_position,CORNER_RIGHT_UPPER,label_1_text,text_size,txt_clr);
+   label("display_2",x_axis_position,y_axis_position+=15,CORNER_RIGHT_UPPER,"Open Trades: "+number_of_open_trades(magic_number),text_size,txt_clr);
+   label("display_3",x_axis_position,y_axis_position+=15,CORNER_RIGHT_UPPER,"Exposure: "+n(currently_at_risk(magic_number),1)+" "+AccountCurrency(),text_size,txt_clr);
+   label("display_4",x_axis_position,y_axis_position+=15,CORNER_RIGHT_UPPER,"Reward: "+n(trade_tp_profit_by_magic_number(magic_number),1)+" "+AccountCurrency(),text_size,txt_clr);
+}

@@ -1,0 +1,449 @@
+//+------------------------------------------------------------------+
+//|                                                 Correlator33.mq4 |
+//|                                                       Solar Tron |
+//|                                                                  |
+//+------------------------------------------------------------------+
+
+#include <stash.mqh>
+#include <Object.mqh>
+//#include <Trade\Trade.mqh>
+
+//create an instance of CTrade
+
+enum target_timeframes
+{
+   custom = 0,
+   hourly = 60,
+   hourly_4 = 240,
+   daily = 1440,
+   weekly = 10080
+};
+
+enum EntryTimes
+{
+   zero = 0,
+   four = 4,
+   eight = 8,
+   twelve = 12,
+   sixteen = 16,
+   twenty = 20,
+};
+  
+
+extern double risk_percent_per_sequence = 0.1;
+extern string trigger_pair = "USDCHF";
+extern string positive_correlated_pairs = "AUDCAD,AUDCHF,AUDJPY,AUDUSD,EURAUD,CADCHF,CADJPY,EURCAD,USDCAD,CHFJPY,EURCHF,USDCHF,EURJPY,EURNZD,EURUSD,EURGBP,GBPJPY,NZDJPY,USDJPY,NZDUSD,GBPUSD,GBPCHF";
+extern string negative_correlated_pairs = "AUDCAD,AUDCHF,AUDJPY,AUDUSD,EURAUD,CADCHF,CADJPY,EURCAD,USDCAD,CHFJPY,EURCHF,USDCHF,EURJPY,EURNZD,EURUSD,EURGBP,GBPJPY,NZDJPY,USDJPY,NZDUSD,GBPUSD,GBPCHF";
+
+extern target_timeframes stop_limit = custom;
+extern double custom_stop = 15;
+extern target_timeframes target = custom;
+extern double custom_target = 100;
+extern double stop_buffer_pips = 5;
+extern int magic_number = 55;
+//---
+string correlating_pairs_array[];
+string non_correlating_pairs_array[];
+int open_trades=0;
+int number_of_pairs=0;
+
+/*
+string EntryTimes[29];
+
+EntryTimes[0] = D'30.10.2022 20'; // sunday2000
+
+EntryTimes[1] = D'10.31.2022 00'; // monday0000
+EntryTimes[2] = D'10.31.2022 04'; // monday0400
+EntryTimes[3] = D'10.31.2022 08'; // monday0800
+EntryTimes[4] = D'10.31.2022 12'; // monday1200
+EntryTimes[5] = D'10.31.2022 16'; // monday1600
+EntryTimes[6] = D'10.31.2022 20'; // monday2000
+
+EntryTimes[7] = D'01.11.2022 00'; // tuesday0000
+EntryTimes[8] = D'01.11.2022 04'; // tuesday0400
+EntryTimes[9] = D'01.11.2022 08'; // tuesday0800
+EntryTimes[10] = D'01.11.2022 12'; // tuesday1200
+EntryTimes[11] = D'01.11.2022 16'; // tuesday1600
+EntryTimes[12] = D'01.11.2022 20'; // tuesday2000
+
+EntryTimes[13] = D'02.11.2022 00'; // wednesday0000
+EntryTimes[14] = D'02.11.2022 04'; // wednesday0400
+EntryTimes[15] = D'02.11.2022 08'; // wednesday0800
+EntryTimes[16] = D'02.11.2022 12'; // wednesday1200
+EntryTimes[17] = D'02.11.2022 16'; // wednesday1600
+EntryTimes[18] = D'02.11.2022 20'; // wednesday2000
+
+EntryTimes[19] = D'03.11.2022 00'; // thursday0000
+EntryTimes[20] = D'03.11.2022 04'; // thursday0400
+EntryTimes[21] = D'03.11.2022 08'; // thursday0800
+EntryTimes[22] = D'03.11.2022 12'; // thursday1200
+EntryTimes[23] = D'03.11.2022 16'; // thursday1600
+EntryTimes[24] = D'03.11.2022 20'; // thursday2000
+
+EntryTimes[25] = D'04.11.2022 00'; // friday0000
+EntryTimes[26] = D'04.11.2022 04'; // friday0400
+EntryTimes[27] = D'04.11.2022 08'; // friday0800
+EntryTimes[28] = D'04.11.2022 12'; // friday1200
+*/
+
+// yyyy.mm.dd hh:mi
+
+extern string sunday2000 = "2022.10.27 20:00";
+
+extern string monday0000 = "2022.10.31 00:00";
+extern string monday0400 = "2022.10.31 04:00";
+extern string monday0800 = "2022.10.31 08:00";
+extern string monday1200 = "2022.10.31 12:00";
+extern string monday1600 = "2022.10.31 16:00";
+extern string monday2000 = "2022.10.31 20:00";
+
+extern string tuesday0000 = "2022.11.01 00:00";
+extern string tuesday0400 = "2022.11.01 04:00";
+extern string tuesday0800 = "2022.11.01 08:00";
+extern string tuesday1200 = "2022.11.01 12:00";
+extern string tuesday1600 = "2022.11.01 16:00";
+extern string tuesday2000 = "2022.11.01 20:00";
+
+extern string wednesday0000 = "2022.11.02 00:00";
+extern string wednesday0400 = "2022.11.02 04:00";
+extern string wednesday0800 = "2022.11.02 08:00";
+extern string wednesday1200 = "2022.11.02 12:00";
+extern string wednesday1600 = "2022.11.02 16:00";
+extern string wednesday2000 = "2022.11.02 20:00";
+
+extern string thursday0000 = "2022.11.03 00:00";
+extern string thursday0400 = "2022.11.03 04:00";
+extern string thursday0800 = "2022.11.03 08:00";
+extern string thursday1200 = "2022.11.03 12:00";
+extern string thursday1600 = "2022.11.03 16:00";
+extern string thursday2000 = "2022.11.03 20:00";
+
+extern string friday0000= "2022.11.04 00:00";
+extern string friday0400 = "2022.11.04 04:00";
+extern string friday0800 = "2022.11.04 08:00";
+extern string friday1200 = "2022.11.04 12:00";
+
+
+/*
+extern string sunday2000 = D'27.10.2022 20:00:00';
+
+extern string monday0000 = D'31.10.2022 00:00:00';
+extern string monday0400 = D'31.10.2022 04:00:00';
+extern string monday0800 = D'31.10.2022 08:00:00';
+extern string monday1200 = D'31.10.2022 12:00:00';
+extern string monday1600 = D'31.10.2022 16:00:00';
+extern string monday2000 = D'31.10.2022 20:00:00';
+
+extern string tuesday0000 = D'01.11.2022 00:00:00';
+extern string tuesday0400 = D'01.11.2022 04:00:00';
+extern string tuesday0800 = D'01.11.2022 08:00:00';
+extern string tuesday1200 = D'01.11.2022 12:00:00';
+extern string tuesday1600 = D'01.11.2022 16:00:00';
+extern string tuesday2000 = D'01.11.2022 20:00:00';
+
+extern string wednesday0000 = D'02.11.2022 00:00:00';
+extern string wednesday0400 = D'02.11.2022 04:00:00';
+extern string wednesday0800 = D'02.11.2022 08:00:00';
+extern string wednesday1200 = D'02.11.2022 12:00:00';
+extern string wednesday1600 = D'02.11.2022 16:00:00';
+extern string wednesday2000 = D'02.11.2022 20:00:00';
+
+extern string thursday0000 = D'03.11.2022 00:00:00';
+extern string thursday0400 = D'03.11.2022 04:00:00';
+extern string thursday0800 = D'03.11.2022 08:00:00';
+extern string thursday1200 = D'03.11.2022 12:00:00';
+extern string thursday1600 = D'03.11.2022 16:00:00';
+extern string thursday2000 = D'03.11.2022 20:00:00';
+
+extern string friday0000 = D'04.11.2022 00:00:00';
+extern string friday0400 = D'04.11.2022 04:00:00';
+extern string friday0800 = D'04.11.2022 08:00:00';
+extern string friday1200 = D'04.11.2022 12:00:00';
+*/
+
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void init_correlation()
+{
+   StringSplit(positive_correlated_pairs,StringGetCharacter(",",0),correlating_pairs_array);
+   StringSplit(negative_correlated_pairs,StringGetCharacter(",",0),non_correlating_pairs_array);
+   number_of_pairs = ArraySize(correlating_pairs_array) + ArraySize(non_correlating_pairs_array);
+}
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+/*
+void OnTick()
+{
+   // string myTime;
+  
+   //myTime = GetTime();
+   
+   //Comment(myTime);
+
+}
+*/
+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+/*
+string GetTime()
+{
+   string TimeWithSeconds;
+   
+   TimeWithSeconds = TimeToStr( TimeLocal(), TIME_DATE|TIME_SECONDS);
+   
+   return TimeWithSeconds;
+}
+*/
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+
+int OnInit()
+{
+
+   init_correlation();
+   open_trades = OrdersTotal();
+
+   while( !IsStopped() )
+   {
+    display();
+    check_for_updates();
+    Sleep(10);
+   }
+
+   return (INIT_SUCCEEDED);
+}
+//+------------------------------------------------------------------+
+void check_for_updates()
+{
+   /*
+   //dateTime myTime = TimeLocal();
+   
+   // format the time and create a string 
+   string hoursAndMinutes = TimeToString( TimeLocal() ,TIME_MINUTES);
+   
+   // buy trade if subtring equals "15:00"
+   if( (StringSubstr(hoursAndMinutes,0,5) == "00:00") )
+   {
+        open_trade_logic();
+        open_trades = OrdersTotal();
+   }
+   */
+   
+   
+   if( OrdersTotal() > open_trades )
+   {
+      int open_trade_ticket = get_most_recently_opened_trade();
+      OrderSelect(open_trade_ticket,SELECT_BY_TICKET);
+      
+      if( OrderSymbol() == trigger_pair )
+      {
+        open_trade_logic();
+        open_trades = OrdersTotal();
+      }
+   }
+   
+   
+    if
+    ( 
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == sunday2000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == monday0000 || 
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == monday0400 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == monday0800 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == monday1200 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == monday1600 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == tuesday0000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == tuesday0400 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == tuesday0800 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == tuesday1200 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == tuesday1600 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == tuesday2000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == wednesday0000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == wednesday0400 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == wednesday0800 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == wednesday1200 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == wednesday1600 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == wednesday2000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == thursday0000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == thursday0400 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == thursday0800 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == thursday1200 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == thursday1600 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == thursday2000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == friday0000 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == friday0400 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == friday0800 ||
+        TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == friday1200
+    )
+    {
+        open_trade_logic();
+        open_trades = OrdersTotal();
+    }
+    
+    /*
+    if( TimeToStr(TimeCurrent(),TIME_DATE|TIME_MINUTES) == monday0000 )
+    {
+        open_trade_logic();
+         open_trades = OrdersTotal();
+    }
+
+   for( unsigned it{0}; it<29; ++it)
+   {
+    if( TimeCurrent() == EntryTimes[it] )
+    {
+        open_trade_logic();
+        open_trades = OrdersTotal();
+    }
+   }
+   */
+
+   if( OrdersTotal() < open_trades )
+   {
+      open_trades = OrdersTotal();
+   }
+   
+}
+//+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//|                                                                  |
+//+------------------------------------------------------------------+
+void open_trade_logic()
+{
+   double starting_balance = AccountBalance();
+   double amount_to_risk = n( ( (starting_balance/100) * risk_percent_per_sequence) / (number_of_pairs) ,2);
+
+   double sl_price;
+   double tp_price;
+   double open_price;
+   double sl_pip_distance;
+   
+   for(int i=0; i<ArraySize(correlating_pairs_array); i++)
+   {
+
+      string asset = correlating_pairs_array[i];
+      pip_value = grab_pip_value(asset);
+      
+      if( OrderType() == OP_BUY )
+      {
+         open_price = MarketInfo(asset,MODE_ASK);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price - ( custom_stop * pip_value ); }
+
+        else // stop_limit != custom
+        { sl_price = iLow(asset,stop_limit,0) - ( stop_buffer_pips * pip_value ); }
+
+        if( target == custom )
+        { tp_price = open_price + ( custom_target * pip_value); }
+
+        else // target != custom 
+        { tp_price = iHigh(asset,target,0); }
+
+        sl_pip_distance = ( open_price - sl_price ) / pip_value;
+      }
+
+      if( OrderType() == OP_SELL )
+      {
+        open_price = MarketInfo(asset,MODE_BID);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price + ( custom_stop * pip_value); }
+
+        else // stop_limit != custom
+        { sl_price = iHigh(asset,stop_limit,0) + (stop_buffer_pips*pip_value);}
+
+        if( target == custom )
+        { tp_price = open_price - (custom_target * pip_value); }
+            
+        else // target != custom
+        { tp_price = iLow(asset,target,0); }
+
+        sl_pip_distance = (sl_price - open_price) / pip_value;
+
+      }
+      
+      double lotsize_to_use = calculate_lotsize_by_currency_amount(amount_to_risk,sl_pip_distance,asset);
+      
+      if(lotsize_to_use < 0.01)
+        { lotsize_to_use = 0.01; }
+    
+      OrderSend(asset,OrderType(),lotsize_to_use,open_price,30,sl_price,tp_price,"Correlating "+trigger_pair,magic_number);
+    }
+     
+     
+    for(int i; i<ArraySize(non_correlating_pairs_array); i++)
+    {
+      string asset = non_correlating_pairs_array[i];
+      pip_value = grab_pip_value(asset);
+      int order;
+      
+      if( OrderType() == OP_SELL )
+      {
+        order=OP_BUY;
+        
+        open_price = MarketInfo(asset,MODE_ASK);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price - (custom_stop*pip_value); }
+
+        else // stop_limit != custom
+        { sl_price = iLow(asset,stop_limit,0) - (stop_buffer_pips * pip_value); }
+
+        if( target == custom )
+        { tp_price = open_price + (custom_target * pip_value); }
+        
+        else // target != custom 
+        { tp_price = iHigh(asset,target,0); }
+
+        sl_pip_distance = ( open_price - sl_price ) / pip_value;
+      }
+
+      if( OrderType() == OP_BUY )
+      {
+        order=OP_SELL;
+        open_price = MarketInfo(asset,MODE_BID);
+         
+        if( stop_limit == custom )
+        { sl_price = open_price + (custom_stop * pip_value); }
+        
+        else // stop_limit != custom
+        { sl_price = iHigh(asset,stop_limit,0) + (stop_buffer_pips * pip_value); }
+
+        if( target == custom )
+        { tp_price = open_price - (custom_target * pip_value); }
+            
+        else // target != custom
+        { tp_price = iLow(asset,target,0); }
+
+        sl_pip_distance = ( sl_price - open_price) / pip_value;
+      }
+        
+        double lotsize_to_use = calculate_lotsize_by_currency_amount(amount_to_risk,sl_pip_distance,asset);
+        
+        if(lotsize_to_use < 0.01)
+        { lotsize_to_use = 0.01; }
+        
+        OrderSend(asset,order,lotsize_to_use,open_price,30,sl_price,tp_price,"Non-Correlating "+trigger_pair,magic_number);
+    }
+}
+//+------------------------------------------------------------------+
+
+void display()
+{
+   int height_shift= _H+25;
+   int x_axis_position = _X+200;
+   int y_axis_position = _Y+15;
+   text_size = 8;
+   color txt_clr = clrWhite;
+   
+   string label_1_text = "Trigger: "+trigger_pair;
+   
+   label("display_1",x_axis_position,y_axis_position,CORNER_RIGHT_UPPER,label_1_text,text_size,txt_clr);
+   label("display_2",x_axis_position,y_axis_position+=15,CORNER_RIGHT_UPPER,"Open Trades: "+number_of_open_trades(magic_number),text_size,txt_clr);
+   label("display_3",x_axis_position,y_axis_position+=15,CORNER_RIGHT_UPPER,"Exposure: "+n(currently_at_risk(magic_number),1)+" "+AccountCurrency(),text_size,txt_clr);
+   label("display_4",x_axis_position,y_axis_position+=15,CORNER_RIGHT_UPPER,"Reward: "+n(trade_tp_profit_by_magic_number(magic_number),1)+" "+AccountCurrency(),text_size,txt_clr);
